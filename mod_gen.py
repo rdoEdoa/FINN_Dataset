@@ -106,6 +106,7 @@ class RandomBlock(nn.Module):
          
       bw = random.choice([2, 4, 8])
       
+      # Needed layer to format the inputs
       self.quant_inp = qnn.QuantIdentity(bit_width=bw, return_quant_tensor=True)
       self.init_code_lines.append(f"self.quant_inp = qnn.QuantIdentity(bit_width={bw}, return_quant_tensor=True)")
       self.forward_code_lines.append("x = self.quant_inp(x)")
