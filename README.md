@@ -40,3 +40,12 @@ Run the script with:
 ```sh
 python3.11 config_gen.py
 ```
+
+## Appendix
+The currently supported layers are:
+- Input formatting: `QuantIdentity`;
+- Convolution: `QuantConv2d`;
+- Activation: `QuantReLU`;
+- Pooling: `MaxPool2d`;
+- Flatten: `Flatten`;
+- Linearization: `QuantLinear`;
