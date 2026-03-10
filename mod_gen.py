@@ -14,7 +14,7 @@ OUTPUT_DIR = "dataset"
 MODELS_DIR = os.path.join(OUTPUT_DIR, "models")
 WEIGHTS_DIR = os.path.join(OUTPUT_DIR, "weights")
 ONNX_DIR = os.path.join(OUTPUT_DIR, "onnx_models")
-NUM_SMALL = 2
+NUM_SMALL = 5
 NUM_LARGE = 0
 IMG_H = 32
 IMG_W = 32
@@ -106,7 +106,6 @@ class RandomBlock(nn.Module):
          
       bw = random.choice([2, 4, 8])
       
-      # Needed layer to format the inputs
       self.quant_inp = qnn.QuantIdentity(bit_width=bw, return_quant_tensor=True)
       self.init_code_lines.append(f"self.quant_inp = qnn.QuantIdentity(bit_width={bw}, return_quant_tensor=True)")
       self.forward_code_lines.append("x = self.quant_inp(x)")
@@ -125,6 +124,8 @@ class RandomBlock(nn.Module):
          stride = 2 if random.random() < stride_prob else 1
          kernel = random.choice([3, 5])
          pad = random.choice([0, 1])
+         # 80% of the time QuantTensor=True
+         ret_qt = True if random.random() < 0.8 else False 
          
          # Conv layer
          conv_layer_name = 'QuantConv2d'
@@ -137,11 +138,12 @@ class RandomBlock(nn.Module):
             stride = stride,
             padding = pad,
             bias = False,
-            weight_bit_width = bw           
+            weight_bit_width = bw,
+            return_quant_tensor = ret_qt           
          )
          
          # Activation layer
-         act = qnn.QuantReLU(bit_width=bw)
+         act = qnn.QuantReLU(bit_width=bw, return_quant_tensor=ret_qt)
          
          # Pooling layer, only half the time
          if random.random() < 0.5:
@@ -167,9 +169,10 @@ class RandomBlock(nn.Module):
              f"self.{conv_name} = qnn.{conv_layer_name}("
              f"in_channels={current_ch}, out_channels={out_ch}, "
              f"kernel_size={kernel}, stride={stride}, padding={pad}, "
-             f"bias=False, weight_bit_width={bw})"
+             f"bias=False, weight_bit_width={bw}), "
+             f"return_quant_tensor={ret_qt}"
          )
-         self.init_code_lines.append(f"self.{act_name} = qnn.QuantReLU(bit_width={bw})")
+         self.init_code_lines.append(f"self.{act_name} = qnn.QuantReLU(bit_width={bw}, return_quant_tensor={ret_qt})")
          if isPool:
              self.init_code_lines.append(
                  f"self.{pool_name} = nn.MaxPool2d("
@@ -206,21 +209,22 @@ class RandomBlock(nn.Module):
       # Final layers
       for i in range(random.randint(1, 2)):
          out_feat = random.choice(possible_ch)
+         ret_qt = True if random.random() < 0.8 else False
          
-         quant = qnn.QuantLinear(in_features=current_in_features, out_features=out_feat, weight_bit_width=bw)
+         quant = qnn.QuantLinear(in_features=current_in_features, out_features=out_feat, weight_bit_width=bw, return_quant_tensor=ret_qt)
          setattr(self, f"quant_{i}", quant)
          self.layer_names.append(f"quant_{i}")
          
          self.init_code_lines.append(
-             f"self.quant_{i} = qnn.QuantLinear(in_features={current_in_features}, out_features={out_feat}, weight_bit_width={bw})"
+             f"self.quant_{i} = qnn.QuantLinear(in_features={current_in_features}, out_features={out_feat}, weight_bit_width={bw}, return_quant_tensor={ret_qt})"
          )
          self.forward_code_lines.append(f"x = self.quant_{i}(x)") 
          
-         fc_act = qnn.QuantReLU(bit_width=bw)
+         fc_act = qnn.QuantReLU(bit_width=bw, return_quant_tensor=ret_qt)
          setattr(self, f"fc_act_{i}", fc_act)
          self.layer_names.append(f"fc_act_{i}")
          
-         self.init_code_lines.append(f"self.fc_act_{i} = qnn.QuantReLU(bit_width={bw})")
+         self.init_code_lines.append(f"self.fc_act_{i} = qnn.QuantReLU(bit_width={bw}, return_quant_tensor={ret_qt})")
          self.forward_code_lines.append(f"x = self.fc_act_{i}(x)")
          
          # Update the input features for the next Linear layer
