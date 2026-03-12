@@ -14,7 +14,7 @@ OUTPUT_DIR = "dataset"
 MODELS_DIR = os.path.join(OUTPUT_DIR, "models")
 WEIGHTS_DIR = os.path.join(OUTPUT_DIR, "weights")
 ONNX_DIR = os.path.join(OUTPUT_DIR, "onnx_models")
-NUM_SMALL = 5
+NUM_SMALL = 4
 NUM_LARGE = 0
 IMG_H = 32
 IMG_W = 32
@@ -147,7 +147,8 @@ class RandomBlock(nn.Module):
             # Pooling layer, only half the time
             if random.random() < 0.5:
                 isPool = True
-                pool = nn.MaxPool2d(kernel_size=random.choice([2, 3]), stride=random.choice([1, 2]))
+                poolSize = random.choice([2, 3])
+                pool = nn.MaxPool2d(kernel_size=poolSize, stride=poolSize)
             else:
                 isPool = False
             
@@ -168,8 +169,8 @@ class RandomBlock(nn.Module):
                 f"self.{conv_name} = qnn.{conv_layer_name}("
                 f"in_channels={current_ch}, out_channels={out_ch}, "
                 f"kernel_size={kernel}, stride={stride}, padding={pad}, "
-                f"bias=False, weight_bit_width={bw}), "
-                f"return_quant_tensor={ret_qt}"
+                f"bias=False, weight_bit_width={bw}, "
+                f"return_quant_tensor={ret_qt})"
             )
             self.init_code_lines.append(f"self.{act_name} = qnn.QuantReLU(bit_width={bw}, return_quant_tensor={ret_qt})")
             if isPool:
