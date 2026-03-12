@@ -20,3 +20,4 @@ tqdm
 networkx
 matplotlib
 scikit-learn
+pandas
