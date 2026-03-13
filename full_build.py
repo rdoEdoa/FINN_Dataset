@@ -92,50 +92,51 @@ def create_build_config(output_dir, folding_config_path):
 
 def execute_build_steps(model, cfg, build_steps, output_dir, verbose=False):
     """Execute the build steps and write a status receipt."""
-    step_lookup = build_dataflow_step_lookup.copy() 
-    
-    # Initialize the status log
+    step_lookup = build_dataflow_step_lookup.copy()
+
     status_log = {
         "success": 0,
         "last_step_executed": "None",
         "error_message": "None"
     }
-    
+
     os.makedirs(output_dir, exist_ok=True)
     status_path = os.path.join(output_dir, "status.json")
-    
-    # Execution loop
+
     for i, step_name in enumerate(build_steps):
         if verbose:
             print(f"Running step: {step_name} [{i+1}/{len(build_steps)}]")
-            
+
         try:
-            # This step should convert the thresholds to integers, but it doesn't always work
             if step_name == "step_convert_to_hw":
                 model = thresholds_round(model)
 
             step_function = step_lookup[step_name]
             model = step_function(model, cfg)
-            
-            # Update the last successful step
+
+            # --- Save intermediate model after HW conversion ---
+            # At this point ONNX nodes correspond 1-to-1 with FINN config layers
+            if step_name == "step_convert_to_hw":
+                hw_model_path = os.path.join(output_dir, "model_after_hw_conversion.onnx")
+                model.save(hw_model_path)
+                if verbose:
+                    print(f"  Saved post-HW-conversion model to {hw_model_path}")
+            # ----------------------------------------------------
+
             status_log["last_step_executed"] = step_name
 
-        # Catch any error
         except Exception as e:
             print(f"Error during the execution of the step '{step_name}': {e}")
             status_log["error_message"] = str(e)
-            
-            # Write the failure before exiting
             with open(status_path, "w") as f:
                 json.dump(status_log, f, indent=4)
             return None
-            
-    # If the loop completes, success. Save this in the status
+
     status_log["success"] = 1
     status_log["error_message"] = "None"
     with open(status_path, "w") as f:
         json.dump(status_log, f, indent=4)
-        
+
     return model
 
 # Clean up the output directory, keeping only the report and the status log
@@ -146,7 +147,7 @@ def collect_reports_and_cleanup(output_dir):
     os.makedirs(reports_dir, exist_ok=True)
     
     # Extensions to save
-    exts = ["json", "txt", "log", "csv", "rpt"]
+    exts = ["json", "txt", "log", "csv", "rpt", "onnx"]
     
     # Recursively find and copy all report files
     for ext in exts:
