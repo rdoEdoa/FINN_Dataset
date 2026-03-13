@@ -10,6 +10,7 @@ brevitas==0.10.2
 onnx==1.14.1
 onnxruntime==1.16.3
 onnxoptimizer>=0.3.13
+qonnx
 
 # --- Graph Conversion & GNN ---
 torch_geometric>=2.4.0
