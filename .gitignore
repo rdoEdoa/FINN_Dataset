@@ -1,5 +1,11 @@
 # Ignore the actual dataset for now, as it is a really large folder
 dataset*
 
+# Ignore the model files
+suggestor*
+
+# Ignore the generated configuration files
+suggested*
+
 # Ignore hidde files
 .*
