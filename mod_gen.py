@@ -14,77 +14,80 @@ OUTPUT_DIR = "dataset"
 MODELS_DIR = os.path.join(OUTPUT_DIR, "models")
 WEIGHTS_DIR = os.path.join(OUTPUT_DIR, "weights")
 ONNX_DIR = os.path.join(OUTPUT_DIR, "onnx_models")
-NUM_SMALL = 4
-NUM_LARGE = 0
+NUM_SMALL = 40
+# NUM_LARGE = 0
 IMG_H = 32
 IMG_W = 32
 
 def main():
     # Create the output directories if they don't exist
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
-    if not os.path.exists(MODELS_DIR):
-        os.makedirs(MODELS_DIR)
-    if not os.path.exists(WEIGHTS_DIR):
-        os.makedirs(WEIGHTS_DIR)
-    if not os.path.exists(ONNX_DIR):
-        os.makedirs(ONNX_DIR)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    os.makedirs(WEIGHTS_DIR, exist_ok=True)
+    os.makedirs(ONNX_DIR, exist_ok=True)
 
     # Generate small models
-    for i in range(NUM_SMALL):
-        print(f"Generating small model {i+1}/{NUM_SMALL}...")
-        
+    generated = 0
+    i = 0
+    while generated < NUM_SMALL:
+        onnx_path    = os.path.join(ONNX_DIR,    f"small_model_{i:04d}.onnx")
+        model_path   = os.path.join(MODELS_DIR,  f"small_model_{i:04d}.py")
+        weights_path = os.path.join(WEIGHTS_DIR, f"small_model_{i:04d}.pth")
+
+        # Skip if this model already exists
+        if os.path.exists(onnx_path):
+            print(f"Model small_model_{i:04d} already exists, skipping.")
+            i += 1
+            generated += 1  # counts toward NUM_SMALL target
+            continue
+
+        print(f"Generating small model {i:04d} ({generated+1}/{NUM_SMALL})...")
+
         max_att = 5
         isValid = False
-        
-        for attempt in range(max_att): # Max attempts in order to avoid infinite loops
-            in_ch = random.choice([1, 3, 10]) 
+
+        for attempt in range(max_att):
+            in_ch = random.choice([1, 3, 10])
             dummy_input = torch.randn(1, in_ch, IMG_H, IMG_W)
-            
             try:
                 model = RandomBlock(mode='small', in_ch=in_ch, img_h=IMG_H, img_w=IMG_W)
-                _ = model(dummy_input) # Test if the full forward pass works
+                _ = model(dummy_input)
                 isValid = True
                 break
             except RuntimeError as e:
-                # Catch errors in the model
-                print(f"[Attempt {attempt+1}/{max_att}] Model generation failed with error: {e}")
+                print(f"  [Attempt {attempt+1}/{max_att}] Failed: {e}")
                 continue
-        
+
         if not isValid:
-            print(f"Failed to generate a valid model after {max_att} attempts. Skipping small model {i:04d}.")
-            continue      
-        
-        # Export the model to .py format
-        model_path = os.path.join(MODELS_DIR, f"small_model_{i:04d}.py")
+            print(f"  Failed to generate a valid model after {max_att} attempts. Skipping.")
+            i += 1
+            continue  # does NOT count toward generated — we want to fill the slot
+
+        # Export .py
         with open(model_path, 'w') as f:
             f.write("import torch\n")
             f.write("import torch.nn as nn\n")
             f.write("import brevitas.nn as qnn\n\n")
-            
             f.write("class GeneratedModel(nn.Module):\n")
             f.write("   def __init__(self):\n")
             f.write("      super(GeneratedModel, self).__init__()\n")
-            
-            # Write the layer definitions
             for line in model.init_code_lines:
                 f.write(f"      {line}\n")
-                
             f.write("\n   def forward(self, x):\n")
-            
-            # Write the forward pass
             for line in model.forward_code_lines:
                 f.write(f"      {line}\n")
-                
             f.write("      return x\n")
-            
-        # Save the weights, needed for future steps
-        weights_path = os.path.join(WEIGHTS_DIR, f"small_model_{i:04d}.pth")
+
+        # Save weights
         torch.save(model.state_dict(), weights_path)
-        
-        # Export the model to QONNX format
-        onnx_path = os.path.join(ONNX_DIR, f"small_model_{i:04d}.onnx")
+
+        # Export ONNX
         export_qonnx(model, dummy_input, onnx_path)
+
+        i += 1
+        generated += 1
+
+    print(f"Models generation complete. Generated {generated} models.")
 
 class RandomBlock(nn.Module):
     # img_h and img_w are passed to calculate the flatten size
