@@ -41,6 +41,14 @@ Run the script with:
 python3.11 config_gen.py
 ```
 
+Having the models and the associated folding configuration files, it is possible to build each combination to obtain the synthesis results. To do so, in a FINN container, run:
+
+```sh
+python3 builder.py
+```
+
+This scripts iterate through all the combinations, and for each it runs the `full_build.py` script, that executes 16 FINN steps, up to the Out Of Context Synthesis, that returns the performances and resources usage. This saves, for each combination, also the post HW conversion .`onnx` model, and a `status.json` in which contains informations about if the build succeded or, in case of error, which was the error encountered. All this informations will be used to build the dataset.
+
 ## Appendix
 The currently supported layers are:
 - Input formatting: `QuantIdentity`;
