@@ -5,6 +5,7 @@ import json
 import numpy as np
 import sys
 import glob
+import getpass
 
 from finn.builder.build_dataflow_config import DataflowBuildConfig, DataflowOutputType
 from finn.builder.build_dataflow_steps import build_dataflow_step_lookup
@@ -178,6 +179,35 @@ def collect_reports_and_cleanup(output_dir):
     os.rmdir(reports_dir)
     print(f"All FINN synthesis reports collected in: {output_dir}")
 
+def clean_finn_internal_tmp():
+    """Safely wipes FINN temporary files strictly owned by the current user."""
+    # Get the exact username and physical Linux User ID
+    username = getpass.getuser()
+    my_uid = os.getuid()
+
+    # Target only the specific FINN folder
+    target_dir = "/tmp/finn_dev_" + username
+
+    print("\nSafely cleaning up YOUR temporary files in " + target_dir + "...")
+
+    if os.path.exists(target_dir):
+        # Double-check the ownership of the base folder
+        if os.stat(target_dir).st_uid == my_uid:
+            for item in os.listdir(target_dir):
+                item_path = os.path.join(target_dir, item)
+                try:
+                    # Triple-check ownership of the specific file/sub-folder
+                    if os.stat(item_path).st_uid == my_uid:
+                        if os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                        else:
+                            os.remove(item_path)
+                except Exception as e:
+                    print("Warning: Could not remove " + item_path + ": " + str(e))
+        else:
+            print("Safety abort: " + target_dir + " is not owned by your user ID")
+    else:
+        print("No temporary FINN directory found for your user. Skipping cleanup.")
 
 def main():
     # Argument parsing
@@ -252,10 +282,13 @@ def main():
         print(f"Error during execution: {e}")
         import traceback
         traceback.print_exc()
-        collect_reports_and_cleanup(output_dir)
         sys.exit(1)
     
-    collect_reports_and_cleanup(output_dir)
+    # At the end of the process, gather all reports and clean up
+    finally:
+        collect_reports_and_cleanup(output_dir)
+        clean_finn_internal_tmp()
+        
     return 0
 
 if __name__ == "__main__":
